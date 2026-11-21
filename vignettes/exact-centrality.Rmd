@@ -1,0 +1,191 @@
+---
+title: "Exact fuzzy centralities and possibilistic rankings"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Exact fuzzy centralities and possibilistic rankings}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 7, fig.height = 4.5, dpi = 80)
+has_data <- FSNA::fsna_data_available()
+```
+
+This vignette follows Porreca and Maturo (2026), the paper in which the exact
+method is developed (manuscript submitted for publication, preprint forthcoming on arXiv; see `citation("FSNA")`). It
+distinguishes the indices of Porreca, Maturo and Ventre (2025), computed by
+applying the crisp formula to the three parameters of the TFNs and ranking
+TFNs by their centre of gravity (`ijar_degree()`, `ijar_closeness()`,
+`ijar_betweenness()`), from the fuzzy centrality defined by the extension
+principle and computed exactly (`fuzzy_centrality()`).
+
+The questionnaire data of the two departments analysed in the paper are not
+distributed with the package (see `?fsna_questionnaire`). The examples use a
+simulated network with the same structure: only half of the actors, the
+respondents, send ties.
+
+```{r}
+library(FSNA)
+A <- fsn_simulated(n = 40, respondents = 20, p = 0.25, seed = 1)
+A
+```
+
+## The result
+
+Read each TFN as a possibility distribution on the ill-known strength of a crisp
+tie. The fuzzy centrality of actor $i$ defined by the extension principle is
+$$\mu_{\tilde c_i}(v) = \sup\{\min_{kl}\mu_{kl}(W_{kl}) : c_i(W) = v\}.$$
+If $c$ is continuous and non-decreasing in every tie on a box containing the
+supports, its $\alpha$-cuts are
+$$[\underline c_i(\alpha), \overline c_i(\alpha)] = [c_i(\underline W_\alpha), c_i(\overline W_\alpha)],$$
+two crisp evaluations, on the lower and on the upper endpoints of the
+$\alpha$-cuts of the ties. The class includes in- and out-strength, ordered
+weighted averages of the ties, closeness based on any continuous t-norm and Katz
+centrality. Betweenness and eigenvector centrality are excluded.
+
+```{r}
+idx <- c("in_strength", "in_closeness_min", "in_closeness_prod", "in_closeness_luk", "in_katz")
+fcs <- lapply(idx, function(i) fuzzy_centrality(A, i))
+names(fcs) <- idx
+sapply(fcs, function(f) max(triangular_approx(f)$max_error))
+```
+
+The triangle $(c(L), c(M), c(R))$ is exact at the support and at the core; for
+strength it is exact everywhere, for the nonlinear indices only at
+$\alpha \in \{0, 1\}$ (dashed lines below).
+
+```{r}
+plot(fcs$in_closeness_min, actors = 5)
+```
+
+User-defined indices are accepted; `check_isotone()` tests monotonicity
+numerically.
+
+```{r}
+my <- function(W) colSums(sqrt(W))
+check_isotone(A, my, n_check = 20)
+head(summary(fuzzy_centrality(A, my)), 3)
+```
+
+## Monte Carlo is an inner approximation
+
+```{r}
+mc <- mc_centrality(A, "in_closeness_prod", B = 200)
+f <- fcs$in_closeness_prod
+summary((mc$upper - mc$lower) / (f$upper[, 1] - f$lower[, 1]))
+```
+
+## Comparing actors
+
+`possibility_matrix()` returns $\Pi(i \succeq j)$ and $N(i \succ j)$. They are
+exact for in- and out-strength and for ordered weighted averages of the
+incoming or outgoing ties, whose values for two actors depend on disjoint ties,
+and bounds otherwise. The supremum lies between two levels of the grid: it is
+found by linear interpolation for strength, which is exact, and by bisection on
+$\alpha$ for the other indices, computing the exact cuts at each trial level
+(Algorithm 1 of Porreca and Maturo, 2026; tolerance $10^{-4}$). Taking it as
+the largest grid level at which the condition holds overestimates necessity.
+
+```{r}
+fp <- fcs$in_closeness_prod
+P_bis <- possibility_matrix(fp)$possibility             # bisection (default)
+P_grid <- possibility_matrix(fp, "grid")$possibility    # largest grid level
+off <- row(P_bis) != col(P_bis)
+summary(P_bis[off] - P_grid[off])                        # at most one grid step
+```
+
+```{r}
+cmp <- possibility_matrix(fcs$in_strength)
+cmp
+plot(cmp)
+certification(fcs$in_strength)
+```
+
+An ordering is *certified* when the supports are strictly separated: then it
+holds in every compatible network. A necessity equal to one does not imply this.
+
+```{r}
+C0 <- certified_pairs(fcs$in_strength, 0)
+sum(C0) / choose(nrow(C0), 2)
+```
+
+The fuzzy set of the most central actor and the possible ranks:
+
+```{r}
+sort(top_set(fcs$in_strength), decreasing = TRUE)[1:6]
+head(rank_intervals(fcs$in_strength, 0.5), 6)
+plot(fcs$in_strength, type = "intervals")
+```
+
+## Null or unknown ties
+
+By default a pair without a rating is a null tie. `set_unknown()` treats the
+ties that non-respondents would have sent as unknown: vacuous possibility
+distributions on $[0, 1]$, whose cuts are the whole interval at every level.
+The exact methods propagate this ignorance.
+
+```{r}
+Au <- set_unknown(A, "nonrespondents")
+Au
+certification(fuzzy_centrality(Au, "in_strength"))$proportion_certified
+length(top_set(fuzzy_centrality(Au, "in_strength"), alpha = 0.5))
+```
+
+When the non-respondents could have sent ties of any strength, few orderings
+survive: the rankings depend on the convention that unrated pairs are null
+ties.
+
+## Ranking methods
+
+Nine methods are available: five scores (centre of gravity, core, Yager's index,
+graded mean or possibilistic mean, Liou-Wang total integral value) and four
+methods based on the comparisons (net possibility, necessity dominance,
+certified dominance, membership in the top set).
+
+```{r}
+cr <- compare_rankings(fcs$in_closeness_prod,
+                       c("cog", "core", "yager", "graded_mean", "liou_wang", "possibility", "necessity", "certified", "top"))
+round(cr$correlation, 2)
+```
+
+## Simulation study
+
+`simulation_study()` evaluates coverage of latent centralities, Monte Carlo
+approximations, the error of the triangle and the reliability of certified
+orderings on networks simulated with `simulate_fsn()`. A small run:
+
+```{r}
+sim <- simulation_study(n = 20, p = 0.3, kappa = c(1, 3), nrep = 3,
+                        indices = c("in_strength", "in_closeness_prod"), B = 50)
+summary(sim)[, c("index", "kappa", "coverage_exact", "coverage_mc50", "disc_cog",
+                 "disc_cog_uncertified", "cert0", "wrong_among_cert0")]
+```
+
+
+## Reproduction of Table 4 of Porreca and Maturo (2026)
+
+The following code reproduces Table 4 of the paper. It needs the questionnaire
+data (`?fsna_questionnaire`) and is not run when they are not available. With
+the default arguments `fsn_department()` builds the networks analysed in the
+paper: ratings mapped to $[0, 1]$ by $x \mapsto (x-1)/4$, so that the answer
+Never is the absence of a tie, unrated pairs and ratings with incomplete
+trajectories as null ties, later ratings replacing earlier ones, and actors
+without ties excluded (51 actors with 24 respondents and 55 actors with 28
+respondents).
+
+```{r, eval = has_data}
+DA <- fsn_department("A"); DB <- fsn_department("B")
+tab4 <- function(x, ix) {
+  fc <- fuzzy_centrality(x, ix); n <- n_actors(x); np <- n * (n - 1) / 2
+  core <- fc$lower[, ncol(fc$lower)]
+  c(cert0 = sum(certified_pairs(fc, 0)) / np, cert05 = sum(certified_pairs(fc, 0.5)) / np,
+    alg1 = certification(fc)$N1_not_separated, grid = certification(fc)$N1_not_separated_grid,
+    spearman = cor(fc_score(fc, "cog", triangle = TRUE), core, method = "spearman"),
+    top05 = length(top_set(fc, alpha = 0.5)), top1 = length(top_set(fc, alpha = 1)),
+    width = mean(fc$upper[, 1] - fc$lower[, 1]))
+}
+ix4 <- c("in_strength", "in_closeness_min", "in_closeness_prod", "in_katz")
+round(t(sapply(ix4, function(i) tab4(DA, i))), 3)
+round(t(sapply(ix4, function(i) tab4(DB, i))), 3)
+```

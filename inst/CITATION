@@ -1,0 +1,19 @@
+bibentry(bibtype = "Misc",
+  header = "To cite the exact fuzzy centralities and the possibilistic comparison of actors, please use:",
+  title = "Exact fuzzy centrality in directed fuzzy social networks: alpha-cuts by monotonicity and possibilistic rankings of actors",
+  author = c(person("Annamaria", "Porreca"), person("Fabrizio", "Maturo")),
+  year = "2026", note = "Manuscript submitted for publication; preprint forthcoming on arXiv",
+  textVersion = "Porreca A., Maturo F. (2026). Exact fuzzy centrality in directed fuzzy social networks: alpha-cuts by monotonicity and possibilistic rankings of actors. Manuscript submitted for publication; preprint forthcoming on arXiv.")
+bibentry(bibtype = "Article",
+  header = "To cite the fuzzy degree, closeness and betweenness of Porreca, Maturo and Ventre (2025), please use:",
+  title = "Fuzzy centrality measures in social network analysis: Theory and application in a university department collaboration network",
+  author = c(person("Annamaria", "Porreca"), person("Fabrizio", "Maturo"), person("Viviana", "Ventre")),
+  journal = "International Journal of Approximate Reasoning", volume = "176", pages = "109319", year = "2025",
+  doi = "10.1016/j.ijar.2024.109319",
+  textVersion = "Porreca A., Maturo F., Ventre V. (2025). Fuzzy centrality measures in social network analysis: Theory and application in a university department collaboration network. International Journal of Approximate Reasoning 176, 109319.")
+bibentry(bibtype = "Manual",
+  header = "To cite the package, please use:",
+  title = "{FSNA}: Fuzzy Social Network Analysis with Triangular Fuzzy Ties",
+  author = c(person("Annamaria", "Porreca"), person("Fabrizio", "Maturo")),
+  year = "2026", note = "R package version 0.2.2",
+  textVersion = "Porreca A., Maturo F. (2026). FSNA: Fuzzy Social Network Analysis with Triangular Fuzzy Ties. R package version 0.2.2.")

@@ -1,0 +1,21 @@
+test_that("TFN arithmetic, cuts and scores", {
+  a <- tfn(c(0, 0.3), c(0.2, 0.31), c(1, 0.32))
+  expect_equal(length(a), 2)
+  expect_equal(unclass(a + a)$m, c(0.4, 0.62))
+  expect_equal(unclass(0.5 * a)$r, c(0.5, 0.16))
+  expect_error(tfn(1, 0, 2))
+  ct <- alpha_cut(a, c(0, 1))
+  expect_equal(ct$lower[, 1], c(0, 0.3)); expect_equal(ct$upper[, 2], c(0.2, 0.31))
+  expect_equal(tfn_score(a, "cog"), c(0.4, 0.31))
+  expect_equal(tfn_score(tfn(0, 1, 2), "graded_mean"), 1)
+  expect_equal(tfn_membership(tfn(0, 0.5, 1), c(0.25, 0.5, 2))[1, ], c(0.5, 1, 0))
+})
+
+test_that("counterexamples of the relation with the original indices", {
+  p <- tfn(c(0.1, 0.3), c(0.5, 0.45), c(0.9, 0.5))
+  expect_equal(as.numeric(as.matrix(path_strength(p, "weakest"))), c(0.3, 0.45, 0.5))
+  expect_equal(as.numeric(as.matrix(path_strength(p, "extension"))), c(0.1, 0.45, 0.5))
+  a <- tfn(c(0, 0.3), c(0.2, 0.31), c(1, 0.32))
+  expect_equal(as.numeric(as.matrix(ftowa(a, "max"))), c(0, 0.2, 1))
+  expect_equal(as.numeric(as.matrix(owa_extension(a, c(1, 0)))), c(0.3, 0.31, 1))
+})

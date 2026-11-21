@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fuzzy collaboration questionnaire</title>
+<style>
+  :root { --ink:#1f2933; --muted:#616e7c; --line:#d9e2ec; --accent:#0072B2; --warm:#D55E00; --bg:#fbfcfd; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; color:var(--ink); background:var(--bg); }
+  main { max-width: 860px; margin: 0 auto; padding: 24px 18px 80px; }
+  h1 { font-size: 1.45rem; margin: 0 0 6px; }
+  p.lead { color: var(--muted); margin: 0 0 18px; line-height: 1.5; }
+  .panel { background:#fff; border:1px solid var(--line); border-radius:10px; padding:16px 18px; margin:14px 0; }
+  label.block { display:block; font-weight:600; margin-bottom:6px; }
+  select, input[type=text] { font-size:1rem; padding:7px 9px; border:1px solid var(--line); border-radius:6px; min-width:260px; }
+  .card { display:grid; grid-template-columns: 1fr 230px; gap: 14px; align-items:center; border-top:1px solid var(--line); padding:14px 0; }
+  .card:first-of-type { border-top:none; }
+  .card.off .sliders, .card.off svg { opacity:0.35; pointer-events:none; }
+  .name { font-weight:600; display:flex; justify-content:space-between; align-items:center; gap:10px; }
+  .name small { font-weight:400; color:var(--muted); }
+  .row { display:grid; grid-template-columns: 150px 1fr 44px; align-items:center; gap:8px; margin:4px 0; font-size:0.9rem; }
+  .row span.v { text-align:right; font-variant-numeric: tabular-nums; }
+  input[type=range] { width:100%; accent-color: var(--accent); }
+  .row.best input { accent-color: var(--warm); }
+  svg { width:230px; height:92px; }
+  button { font-size:1rem; padding:9px 16px; border-radius:6px; border:1px solid var(--accent); background:var(--accent); color:#fff; cursor:pointer; }
+  button.ghost { background:#fff; color:var(--accent); }
+  .actions { display:flex; gap:10px; flex-wrap:wrap; margin-top:14px; }
+  .msg { margin-top:10px; font-size:0.95rem; }
+  .ok { color:#05795a; } .err { color:#b42318; }
+  .help { font-size:0.88rem; color:var(--muted); line-height:1.45; }
+  @media (max-width: 640px) { .card { grid-template-columns: 1fr; } svg { width:100%; } }
+</style>
+</head>
+<body>
+<main>
+  <h1 id="title"></h1>
+  <p class="lead" id="question"></p>
+
+  <div class="panel">
+    <label class="block" for="me" id="t_who">Who are you?</label>
+    <select id="me"><option value="" id="t_sel">-- select your name --</option></select>
+    <p class="help" id="t_priv">Your answers are linked to your name only to build the network; results are reported without names.</p>
+  </div>
+
+  <div class="panel help" id="howto">
+    For each colleague you collaborate with, tick <b>Rate</b> and move the three sliders:
+    the <b>most plausible</b> value of the collaboration and the <b>lowest</b> and <b>highest</b> values
+    you still consider plausible. The wider the range, the less sure you are. The triangle on the
+    right shows your answer. Leave unticked the colleagues with whom you do not collaborate.
+  </div>
+
+  <div class="panel" id="list"></div>
+
+  <div class="panel">
+    <div class="actions">
+      <button id="send" >Submit</button>
+      <button id="csv" class="ghost">Download my answers (CSV)</button>
+    </div>
+    <div class="msg" id="msg"></div>
+  </div>
+</main>
+<script>
+const CONFIG = /*CONFIG*/{"title":"Collaboration questionnaire","question":"How much do you collaborate with each colleague?","members":["Member 1","Member 2","Member 3"],"scale":[0,10],"step":0.5,"low_label":"no collaboration","high_label":"very strong collaboration","endpoint":"","group":"G1"}/*END*/;
+
+const UI = Object.assign({who:"Who are you?", sel:"-- select your name --",
+  priv:"Your answers are linked to your name only to build the network; results are reported without names.",
+  howto:"For each colleague you collaborate with, tick <b>Rate</b> and move the three sliders: the <b>most plausible</b> value of the collaboration and the <b>lowest</b> and <b>highest</b> values you still consider plausible. The wider the range, the less sure you are. The triangle on the right shows your answer. Leave unticked the colleagues with whom you do not collaborate.",
+  rate:"Rate", low:"Lowest plausible", best:"Most plausible", high:"Highest plausible", send:"Submit", csv:"Download my answers (CSV)",
+  first:"Select your name first.", none:"You have not rated any colleague. Submit anyway?",
+  noend:"No collection server is configured: use 'Download my answers' and send the file to the organiser.",
+  thanks:"Thank you: receipt confirmed by the server. Ratings: ",
+  unconf:"Receipt not confirmed: the answers may or may not have been recorded. You can press Send again (the server ignores duplicates) and download your answers. Ratings: ",
+  fail:"The server reported an error: the answers may not have been recorded. Press Send again (duplicates are ignored) or download your answers and send the file."}, CONFIG.ui || {});
+document.getElementById("t_who").textContent = UI.who; document.getElementById("t_sel").textContent = UI.sel;
+document.getElementById("t_priv").textContent = UI.priv; document.getElementById("howto").innerHTML = UI.howto;
+document.getElementById("send").textContent = UI.send; document.getElementById("csv").textContent = UI.csv;
+const S0 = CONFIG.scale[0], S1 = CONFIG.scale[1], ST = CONFIG.step || 0.5;
+document.getElementById("title").textContent = CONFIG.title;
+document.getElementById("question").textContent = CONFIG.question + " (" + S0 + " = " + CONFIG.low_label + ", " + S1 + " = " + CONFIG.high_label + ")";
+const me = document.getElementById("me");
+CONFIG.members.forEach(m => { const o = document.createElement("option"); o.value = m; o.textContent = m; me.appendChild(o); });
+
+const list = document.getElementById("list");
+const state = {};
+function fmt(v) { return (Math.round(v * 100) / 100).toString(); }
+function draw(svg, s) {
+  const W = 230, H = 92, pad = 10, X = v => pad + (W - 2 * pad) * (v - S0) / (S1 - S0);
+  const pts = `${X(s.low)},${H - 16} ${X(s.best)},12 ${X(s.high)},${H - 16}`;
+  svg.innerHTML = `<line x1="${pad}" y1="${H - 16}" x2="${W - pad}" y2="${H - 16}" stroke="#9aa5b1"/>
+    <text x="${pad}" y="${H - 2}" font-size="10" fill="#616e7c">${S0}</text>
+    <text x="${W - pad}" y="${H - 2}" font-size="10" fill="#616e7c" text-anchor="end">${S1}</text>
+    <polygon points="${pts}" fill="rgba(0,114,178,0.18)" stroke="#0072B2" stroke-width="1.5"/>
+    <circle cx="${X(s.best)}" cy="12" r="3.5" fill="#D55E00"/>`;
+}
+function render() {
+  list.innerHTML = "";
+  const who = me.value;
+  CONFIG.members.filter(m => m !== who).forEach(m => {
+    if (!state[m]) state[m] = { on: false, low: (S0 + S1) / 2 - 1, best: (S0 + S1) / 2, high: (S0 + S1) / 2 + 1 };
+    const s = state[m];
+    const card = document.createElement("div"); card.className = "card" + (s.on ? "" : " off");
+    card.innerHTML = `<div><div class="name"><span>${m}</span><label><input type="checkbox" ${s.on ? "checked" : ""}> ${UI.rate}</label></div>
+      <div class="sliders">
+        <div class="row"><span>${UI.low}</span><input type="range" data-k="low" min="${S0}" max="${S1}" step="${ST}" value="${s.low}"><span class="v"></span></div>
+        <div class="row best"><span>${UI.best}</span><input type="range" data-k="best" min="${S0}" max="${S1}" step="${ST}" value="${s.best}"><span class="v"></span></div>
+        <div class="row"><span>${UI.high}</span><input type="range" data-k="high" min="${S0}" max="${S1}" step="${ST}" value="${s.high}"><span class="v"></span></div>
+      </div></div><svg viewBox="0 0 230 92"></svg>`;
+    const svg = card.querySelector("svg");
+    const sync = () => { card.querySelectorAll("input[type=range]").forEach(r => { r.value = s[r.dataset.k]; r.nextElementSibling.textContent = fmt(s[r.dataset.k]); }); draw(svg, s); };
+    card.querySelector("input[type=checkbox]").addEventListener("change", e => { s.on = e.target.checked; card.classList.toggle("off", !s.on); });
+    card.querySelectorAll("input[type=range]").forEach(r => r.addEventListener("input", e => {
+      const k = e.target.dataset.k, v = parseFloat(e.target.value); s[k] = v;
+      if (k === "best") { s.low = Math.min(s.low, v); s.high = Math.max(s.high, v); }
+      if (k === "low") { s.best = Math.max(s.best, v); s.high = Math.max(s.high, s.best); }
+      if (k === "high") { s.best = Math.min(s.best, v); s.low = Math.min(s.low, s.best); }
+      sync();
+    }));
+    sync(); list.appendChild(card);
+  });
+}
+me.addEventListener("change", render); render();
+
+function rows() {
+  const who = me.value, t = new Date().toISOString();
+  return Object.keys(state).filter(m => m !== who && state[m].on)
+    .map(m => ({ group: CONFIG.group, timestamp: t, rater: who, rated: m, low: state[m].low, best: state[m].best, high: state[m].high }));
+}
+function toCSV(r) {
+  const h = ["group", "timestamp", "rater", "rated", "low", "best", "high"];
+  const q = v => '"' + String(v).replace(/"/g, '""') + '"';
+  return [h.join(",")].concat(r.map(x => h.map(k => q(x[k])).join(","))).join("\n");
+}
+const msg = document.getElementById("msg");
+function say(t, ok) { msg.textContent = t; msg.className = "msg " + (ok ? "ok" : "err"); }
+document.getElementById("csv").addEventListener("click", () => {
+  if (!me.value) return say(UI.first, false);
+  let r = rows();
+  // a respondent who rates nobody is recorded with an empty 'rated' field
+  if (!r.length) r = [{ group: CONFIG.group, timestamp: new Date().toISOString(), rater: me.value, rated: "", low: "", best: "", high: "" }];
+  const blob = new Blob([toCSV(r)], { type: "text/csv" });
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
+  a.download = "ratings_" + me.value.replace(/\W+/g, "_") + ".csv"; a.click();
+});
+// identifier of a submission: generated once for a given content and reused if
+// the same answers are sent again, so that the server can ignore duplicates.
+// The content is compared without metadata (timestamps are regenerated at each
+// click by rows()); a retry reuses the identifier and the original rows.
+let pending = null;
+function newId() {
+  if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+  return Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 12);
+}
+function semantic(rater, group, r) {
+  return JSON.stringify({ rater: rater, group: group,
+    rows: r.map(x => [x.rated, x.low, x.best, x.high]) });
+}
+document.getElementById("send").addEventListener("click", async () => {
+  if (!me.value) return say(UI.first, false);
+  const r = rows();
+  if (!r.length && !confirm(UI.none)) return;
+  if (!CONFIG.endpoint) return say(UI.noend, false);
+  const content = semantic(me.value, CONFIG.group, r);
+  if (!pending || pending.content !== content)
+    pending = { id: newId(), content: content, rows: r };
+  const body = JSON.stringify({ submission_id: pending.id, rater: me.value, group: CONFIG.group, rows: pending.rows });
+  // a single request: the backend answers "ok" (recorded) or "duplicate"
+  // (already recorded with this identifier). The request is never repeated
+  // automatically: if the answer cannot be read, or the server reports an
+  // error, receipt is uncertain and the respondent may press Send again, which
+  // reuses the same identifier.
+  let txt = null;
+  try {
+    const res = await fetch(CONFIG.endpoint, { method: "POST", headers: { "Content-Type": "text/plain" }, body });
+    txt = res.ok ? (await res.text()).trim() : "";
+  } catch (e) {
+    return say(UI.unconf + pending.rows.length, false);
+  }
+  if (txt === "ok" || txt === "duplicate") { const k = pending.rows.length; pending = null; return say(UI.thanks + k, true); }
+  say(UI.fail, false);
+});
+</script>
+</body>
+</html>

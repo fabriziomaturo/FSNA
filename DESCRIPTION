@@ -1,0 +1,43 @@
+Package: FSNA
+Type: Package
+Title: Fuzzy Social Network Analysis with Triangular Fuzzy Ties
+Version: 0.2.2
+Authors@R: c(
+    person("Annamaria", "Porreca", role = c("aut", "cph"),
+           email = "annamaria.porreca@uniroma5.it"),
+    person("Fabrizio", "Maturo", role = c("aut", "cre", "cph"),
+           email = "fabrizio.maturo@unimercatorum.it"))
+Description: Tools for directed social networks whose ties are triangular
+    fuzzy numbers. The package implements the fuzzy centrality indices of
+    Porreca, Maturo and Ventre (2025) <doi:10.1016/j.ijar.2024.109319>
+    (fuzzy triangular ordered weighted averages, best paths and fuzzy degree,
+    closeness and betweenness), with a choice of the method used to rank
+    fuzzy numbers, and the exact computation of the alpha-cuts of every
+    centrality index that is continuous and non-decreasing in the tie
+    weights, obtained from two crisp evaluations per level by the extension
+    principle, as described in Porreca and Maturo (2026, manuscript submitted for
+    publication). Actors are compared through possibility and necessity
+    degrees, with suprema located by interpolation or bisection on the
+    levels, certified orderings, rank intervals and the fuzzy set of the most
+    central actor. Simulators of fuzzy networks and of mouse-tracking
+    questionnaire ratings, importers of questionnaire data, Monte Carlo
+    approximations and a reproducible simulation study are included.
+License: GPL (>= 3)
+Encoding: UTF-8
+Depends: R (>= 4.1.0)
+Imports:
+    graphics,
+    grDevices,
+    stats,
+    tools,
+    utils
+Suggests:
+    igraph,
+    jsonlite,
+    readxl,
+    knitr,
+    rmarkdown,
+    testthat (>= 3.0.0)
+VignetteBuilder: knitr
+Config/testthat/edition: 3
+RoxygenNote: 7.3.1

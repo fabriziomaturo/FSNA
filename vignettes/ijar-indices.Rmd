@@ -1,0 +1,127 @@
+---
+title: "The indices of Porreca, Maturo and Ventre (2025)"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{The indices of Porreca, Maturo and Ventre (2025)}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 7, fig.height = 4.5, dpi = 80)
+```
+
+Porreca, Maturo and Ventre (2025) define fuzzy degree, closeness and
+betweenness for directed networks whose ties are triangular fuzzy numbers
+(TFNs). The crisp formula is applied to the three parameters of the TFNs,
+intermediate choices (the order of the ties in an ordered weighted average,
+the best path between two actors) are made by ranking TFNs through their centre
+of gravity (CoG), and actors are ranked by the CoG of their fuzzy centrality.
+This vignette describes the functions that implement these indices. The exact
+fuzzy centrality defined by the extension principle, developed in Porreca and
+Maturo (2026), is described in `vignette("exact-centrality")`.
+
+The examples use a simulated survey network (`?fsn_simulated`).
+
+```{r}
+library(FSNA)
+A <- fsn_simulated()
+```
+
+## Degree
+
+The fuzzy in- and out-degree are fuzzy triangular ordered weighted averages
+(FTOWA) of the $n-1$ ties of an actor, computed with TFN arithmetic after
+ordering the ties by their CoG. With equal weights the order of the ties does
+not matter: the fuzzy degree is the in- or out-strength divided by $n-1$, and
+coincides with the extension principle.
+
+```{r}
+print(ijar_degree(A, "in"), n = 5)
+print(ijar_degree(A, "out"), n = 5)
+```
+
+With unequal weights the ties are ordered by their CoG, and the result can
+differ from the extension of the OWA operator:
+
+```{r}
+a <- tfn(c(0, 0.3), c(0.2, 0.31), c(1, 0.32))
+ftowa(a, "max")
+owa_extension(a, c(1, 0))
+```
+
+## Closeness
+
+A path is evaluated by its weakest tie, and the best path from one actor to
+another is the path whose weakest tie is the strongest, with ties and paths
+compared through their CoG. The fuzzy in-closeness of an actor is the average of
+the strengths of the best paths, with at most $s$ steps, that reach it from the
+other actors; the out-closeness uses the best paths that start from it.
+
+```{r}
+print(ijar_closeness(A, "in", max_steps = 2), n = 5)
+print(ijar_closeness(A, "out", max_steps = 2), n = 5)
+```
+
+The strength of a path taken as the TFN of its weakest tie identified by CoG
+differs from the extension of the minimum, which takes the minimum separately
+on the left endpoints, the cores and the right endpoints:
+
+```{r}
+p <- tfn(c(0.1, 0.3), c(0.5, 0.45), c(0.9, 0.5))
+path_strength(p, "weakest")
+path_strength(p, "extension")
+```
+
+## Betweenness
+
+Betweenness is the proportion of best paths between other actors that pass
+through an actor, and is a crisp number; tied best paths share the count.
+
+```{r}
+print(ijar_betweenness(A), n = 5)
+```
+
+## Other ranking methods
+
+Every function accepts `rank_method`, used to order the ties, select the best
+paths and rank the actors:
+
+```{r}
+r <- sapply(fuzzy_rank_methods(), function(m) {
+  d <- ijar_closeness(A, "in", rank_method = m)
+  d$actor[order(d$rank)][1:5]
+})
+r
+```
+
+## Alternative computational choices
+
+The indices depend on choices that the definitions leave to the analyst: the
+strength assigned to a path, the treatment of paths with equal score, the
+normalization and, for betweenness, the comparison of an indirect route with the
+direct tie. `variant = "definition"`, the default, follows the definitions of
+Section 3 of the paper. `variant = "alternative"`, defined for at most two
+steps, takes the componentwise mean of the ties of a best path as its strength,
+prefers indirect paths when scores are equal and divides closeness once more by
+$n-1$. Each choice can also be set individually, which shows how much the
+ranking of the actors depends on it.
+
+```{r}
+def <- ijar_closeness(A, "in")
+alt <- ijar_closeness(A, "in", variant = "alternative")
+mean_only <- ijar_closeness(A, "in", path_tfn = "mean")
+c(alternative = cor(def$score, alt$score, method = "kendall"),
+  mean_path = cor(def$score, mean_only$score, method = "kendall"))
+```
+
+## Exact counterpart
+
+The exact fuzzy closeness with the minimum t-norm is the extension of the
+best-path closeness; its triangle on the endpoints coincides with it at the
+support and at the core (Porreca and Maturo, 2026).
+
+```{r}
+fc <- fuzzy_centrality(A, "in_closeness_min", max_steps = 2)
+plot(fc, actors = 5)
+```

@@ -1,0 +1,106 @@
+---
+title: "Getting started with FSNA"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Getting started with FSNA}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 7, fig.height = 4.5, dpi = 80)
+```
+
+FSNA analyses directed social networks whose ties are triangular fuzzy numbers
+(TFNs). It contains the indices of Porreca, Maturo and Ventre (2025), with the
+choice of the method used to rank fuzzy numbers, and the exact computation of
+fuzzy centralities by the extension principle, with possibilistic comparisons
+of the actors.
+
+```{r}
+library(FSNA)
+```
+
+## Triangular fuzzy numbers
+
+A TFN $(l, m, r)$ has support $[l, r]$ and core $m$. Sums and multiplication
+by non-negative scalars act on the three parameters.
+
+```{r}
+a <- tfn(c(0.1, 0.3), c(0.5, 0.45), c(0.9, 0.5), names = c("tie 1", "tie 2"))
+a
+a + a
+alpha_cut(a, c(0, 0.5, 1))
+sapply(fuzzy_rank_methods(), function(m) tfn_score(a, m))
+plot(a)
+```
+
+## Fuzzy social networks
+
+A network is stored as three matrices with the left endpoints, the cores and
+the right endpoints of the ties (rows: senders, columns: receivers). Absent ties
+are null fuzzy numbers. Networks are built from matrices (`fsn()`), from ratings
+in long format (`fsn_from_ratings()`), from igraph objects or by simulation.
+
+```{r}
+x <- fsn_example()
+x
+fsn_tie(x, "A", "B")
+plot(x, main = "Example network")
+```
+
+## A survey network
+
+The questionnaire data of the two departments analysed by Porreca, Maturo and
+Ventre (2025) and Porreca and Maturo (2026) are not distributed with the
+package; they are available on request (`?fsna_questionnaire`). The examples use
+a simulated network with the same structure: only respondents send ties.
+
+```{r}
+A <- fsn_simulated()
+summary(A)
+```
+
+## Indices of Porreca, Maturo and Ventre (2025)
+
+These indices apply the crisp formula to the three parameters of the TFNs and
+rank TFNs by their centre of gravity, as described in that paper.
+
+```{r}
+print(ijar_degree(A, "in"), n = 5)
+print(ijar_closeness(A, "in"), n = 5)
+print(ijar_betweenness(A), n = 3)
+```
+
+The ranking score can be changed in every function, for example
+`rank_method = "graded_mean"`. See `vignette("ijar-indices")`.
+
+## Exact fuzzy centralities
+
+Porreca and Maturo (2026) show that, for an index that is continuous and
+non-decreasing in the ties, the $\alpha$-cuts of the fuzzy centrality defined
+by the extension principle are obtained exactly from two crisp evaluations per
+level.
+
+```{r}
+fc <- fuzzy_centrality(A, "in_closeness_prod", max_steps = 2)
+fc
+plot(fc, actors = 5)
+```
+
+Actors are compared by possibility and necessity degrees, certified orderings,
+rank intervals and the fuzzy set of the most central actor; see
+`vignette("exact-centrality")`.
+
+```{r}
+head(summary(fc), 6)
+```
+
+## Complete analysis in one call
+
+```{r, eval = FALSE}
+res <- fsna_analyze(A, output_dir = "analysis_A")   # figures, tables, report.html
+```
+
+Data collection without mouse tracking is described in
+`vignette("data-collection")`.

@@ -1,0 +1,80 @@
+---
+title: "Collecting fuzzy ratings and running the analysis"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Collecting fuzzy ratings and running the analysis}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 7, fig.height = 4.5, dpi = 80)
+```
+
+```{r}
+library(FSNA)
+```
+
+## Elicitation without mouse tracking
+
+`fuzzify_responses()` converts four kinds of responses into TFNs:
+
+* **three-point** (recommended): lowest plausible, most plausible and highest
+  plausible value, i.e. a direct statement of a triangular possibility
+  distribution;
+* **interval**: a range slider and a most plausible value inside it;
+* **confidence**: a value and a confidence rating, converted into a symmetric
+  spread;
+* **linguistic**: a label from a term set (`linguistic_scale()`), with an
+  optional second label for hesitation between adjacent terms.
+
+```{r}
+d <- data.frame(rater = "a", rated = c("b", "c", "d"), best = c(8, 4, 6), confidence = c(5, 2, 4))
+fuzzify_responses(d, "confidence", scale = c(0, 10), confidence_scale = c(1, 5))
+d <- data.frame(rater = "a", rated = c("b", "c"), label = c("strong", "moderate"), label2 = c(NA, "strong"))
+fuzzify_responses(d, "linguistic")
+```
+
+## A web form
+
+`make_collector()` writes a self-contained HTML page with the names of the
+members. Each respondent selects his or her name and, for each colleague, sets
+the three values with sliders while the triangle is drawn. Answers are sent to a
+Google Sheet through a Google Apps Script web app, whose code is in
+`system.file("collector", "google_apps_script.gs", package = "FSNA")`, or
+downloaded as CSV. The page can be embedded in a Google Site.
+
+```{r, eval = FALSE}
+make_collector(c("Alba", "Bruno", "Carla", "Dario"), file = "form.html",
+               endpoint = "https://script.google.com/macros/s/.../exec", open = TRUE)
+```
+
+## From the sheet to the report
+
+```{r}
+f <- system.file("extdata", "three_point_example.csv", package = "FSNA")   # synthetic answers
+d <- read_ratings(f)                       # also .xlsx with readxl, or a CSV URL
+head(d, 3)
+x <- fsn_from_ratings(fuzzify_responses(d, "three_point", scale = c(0, 10)), drop_isolated = FALSE)
+x
+```
+
+```{r, eval = FALSE}
+res <- fsna_analyze(x, output_dir = "analysis", open = TRUE)
+```
+
+```{r}
+res <- fsna_analyze(x, output_dir = NULL, indices = c("in_strength", "in_closeness_prod"))
+res$certification_summary
+```
+
+## Simulated questionnaires
+
+`simulate_ratings()` generates mouse-tracking style ratings with nonresponse,
+latent working groups and repeated ratings, in the format of the questionnaire data (`?fsna_questionnaire`).
+
+```{r}
+s <- simulate_ratings(30, seed = 1)
+xs <- fsn_from_ratings(s, from = "rater", to = "rated", order = "order")
+xs
+```
